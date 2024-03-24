@@ -1,0 +1,488 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: samba-ad-server
+  labels:
+    name: samba-ad-server
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: container-json
+  namespace: samba-ad-server
+data:
+  # https://github.com/samba-in-kubernetes/sambacc/blob/master/examples/addc_ou.json
+  # https://github.com/samba-in-kubernetes/sambacc/blob/master/sambacc/schema/conf-v0.schema.json
+  # https://www.samba.org/samba/docs/current/man-html/smb.conf.5.html
+  container.json: |
+    {
+      "samba-container-config": "v0",
+      "configs": {
+        "demo": {
+          "instance_features": ["addc"],
+          "domain_settings": "sink",
+          "globals": ["sink"],
+          "instance_name": "dc-0"
+        }
+      },
+      "globals": {
+        "sink": {
+          "options": {
+            "interfaces": "lo",
+            "dns forwarder": "169.254.25.10",
+            "rpc server dynamic port range": "49152-49165"
+          }
+        }
+      },
+      "domain_settings": {
+        "sink": {
+          "realm": "DOMAIN1.SINK.TEST",
+          "short_domain": "DOMAIN1",
+          "admin_password": "Passw0rd"
+        }
+      },
+      "organizational_units": {
+        "sink": [
+          {"name": "employees"}
+        ]
+      },
+      "domain_groups": {
+        "sink": [
+            {"name": "supervisors"},
+            {
+              "name": "employees",
+              "ou": "employees"
+            },
+            {"name": "characters"},
+            {"name": "bulk"}
+        ]
+      },
+      "domain_users": {
+        "sink": [
+          {
+            "name": "bwayne",
+            "password": "1115Rose.",
+            "given_name": "Bruce",
+            "surname": "Wayne",
+            "member_of": ["supervisors", "characters", "employees"],
+            "ou": "employees"
+          },
+          {
+            "name": "ckent",
+            "password": "1115Rose.",
+            "given_name": "Clark",
+            "surname": "Kent",
+            "member_of": ["characters", "employees"],
+            "ou": "employees"
+          },
+          {
+            "name": "bbanner",
+            "password": "1115Rose.",
+            "given_name": "Bruce",
+            "surname": "Banner",
+            "member_of": ["characters", "employees"],
+            "ou": "employees"
+          },
+          {
+            "name": "pparker",
+            "password": "1115Rose.",
+            "given_name": "Peter",
+            "surname": "Parker",
+            "member_of": ["characters", "employees"],
+            "ou": "employees"
+          },
+          {
+            "name": "user0",
+            "password": "1115Rose.",
+            "given_name": "George0",
+            "surname": "Hue-Sir",
+            "member_of": ["bulk"]
+          },
+          {
+            "name": "user1",
+            "password": "1115Rose.",
+            "given_name": "George1",
+            "surname": "Hue-Sir",
+            "member_of": ["bulk"]
+          },
+          {
+            "name": "user2",
+            "password": "1115Rose.",
+            "given_name": "George2",
+            "surname": "Hue-Sir",
+            "member_of": ["bulk"]
+          },
+          {
+            "name": "user3",
+            "password": "1115Rose.",
+            "given_name": "George3",
+            "surname": "Hue-Sir",
+            "member_of": ["bulk"]
+          },
+          {
+            "name": "user4",
+            "password": "1115Rose.",
+            "given_name": "George4",
+            "surname": "Hue-Sir",
+            "member_of": ["bulk"]
+          },
+          {
+            "name": "user5",
+            "password": "1115Rose.",
+            "given_name": "George5",
+            "surname": "Hue-Sir",
+            "member_of": ["bulk"]
+          },
+          {
+            "name": "user6",
+            "password": "1115Rose.",
+            "given_name": "George6",
+            "surname": "Hue-Sir",
+            "member_of": ["bulk"]
+          },
+          {
+            "name": "user7",
+            "password": "1115Rose.",
+            "given_name": "George7",
+            "surname": "Hue-Sir",
+            "member_of": ["bulk"]
+          },
+          {
+            "name": "user8",
+            "password": "1115Rose.",
+            "given_name": "George8",
+            "surname": "Hue-Sir",
+            "member_of": ["bulk"]
+          },
+          {
+            "name": "user9",
+            "password": "1115Rose.",
+            "given_name": "George9",
+            "surname": "Hue-Sir",
+            "member_of": ["bulk"]
+          }
+        ]
+      }
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: var-lib-samba
+  namespace: samba-ad-server
+  labels:
+    app: samba-ad-server
+spec:
+  storageClassName: rook-ceph-block
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: etc-samba
+  namespace: samba-ad-server
+  labels:
+    app: samba-ad-server
+spec:
+  storageClassName: rook-ceph-block
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  namespace: metallb-system
+  name: dc-0
+spec:
+  addresses:
+  - 192.168.3.31/32
+  autoAssign: false
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - dc-0
+  # interfaces:
+  # - ens192
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: samba-ad-server
+  namespace: samba-ad-server
+  annotations:
+    metallb.universe.tf/address-pool: dc-0
+  labels:
+    app: samba-ad-server
+spec:
+  type: LoadBalancer
+  selector:
+    app: samba-ad-server
+  ports:
+  # https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
+  # https://wiki.samba.org/index.php/Samba_AD_DC_Port_Usage
+  # https://learn.microsoft.com/en-us/troubleshoot/windows-server/identity/config-firewall-for-ad-domains-and-trusts
+  - port: 53
+    targetPort: 53
+    name: domain
+  - port: 53
+    targetPort: 53
+    name: domain-udp
+    protocol: UDP
+  - port: 88
+    targetPort: 88
+    name: kerberos
+  - port: 88
+    targetPort: 88
+    name: kerberos-udp
+    protocol: UDP
+  - port: 123
+    targetPort: 123
+    name: ntp-udp
+    protocol: UDP
+  - port: 135
+    targetPort: 135
+    name: epmap
+  - port: 137
+    targetPort: 137
+    name: netbios-ns-udp
+    protocol: UDP
+  - port: 138
+    targetPort: 138
+    name: netbios-dgm-udp
+    protocol: UDP
+  - port: 139
+    targetPort: 139
+    name: netbios-ssn
+  - port: 389
+    targetPort: 389
+    name: ldap
+  - port: 389
+    targetPort: 389
+    name: ldap-udp
+    protocol: UDP
+  - port: 445
+    targetPort: 445
+    name: microsoft-ds
+  - port: 464
+    targetPort: 464
+    name: kpasswd
+  - port: 464
+    targetPort: 464
+    name: kpasswd-udp
+    protocol: UDP
+  - port: 636
+    targetPort: 636
+    name: ldaps
+  - port: 3268
+    targetPort: 3268
+    name: msft-gc
+  - port: 3269
+    targetPort: 3269
+    name: msft-gc-ssl
+  - port: 49152
+    targetPort: 49152
+    name: rpc-49152
+  - port: 49153
+    targetPort: 49153
+    name: rpc-49153
+  - port: 49154
+    targetPort: 49154
+    name: rpc-49154
+  - port: 49155
+    targetPort: 49155
+    name: rpc-49155
+  - port: 49156
+    targetPort: 49156
+    name: rpc-49156
+  - port: 49157
+    targetPort: 49157
+    name: rpc-49157
+  - port: 49158
+    targetPort: 49158
+    name: rpc-49158
+  - port: 49159
+    targetPort: 49159
+    name: rpc-49159
+  - port: 49160
+    targetPort: 49160
+    name: rpc-49160
+  - port: 49161
+    targetPort: 49161
+    name: rpc-49161
+  - port: 49162
+    targetPort: 49162
+    name: rpc-49162
+  - port: 49163
+    targetPort: 49163
+    name: rpc-49163
+  - port: 49164
+    targetPort: 49164
+    name: rpc-49164
+  - port: 49165
+    targetPort: 49165
+    name: rpc-49165
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: dc
+  namespace: samba-ad-server
+  labels:
+    app: samba-ad-server
+spec:
+  serviceName: samba-ad-server
+  replicas: 1
+  selector:
+    matchLabels:
+      app: samba-ad-server
+  template:
+    metadata:
+      labels:
+        app: samba-ad-server
+    spec:
+      containers:
+        - name: samba-ad-server
+          image: quay.io/samba.org/samba-ad-server:latest
+          # args:
+          #   - --name=$(DC_NODE_NAME)
+          env:
+            # - name: DC_NODE_NAME
+            #   valueFrom:
+            #     fieldRef:
+            #       fieldPath: spec.nodeName
+            - name: SAMBACC_CONFIG
+              value: /etc/samba-container/container.json
+            - name: SAMBA_CONTAINER_ID
+              value: demo
+          resources:
+            limits:
+              memory: 4Gi
+              cpu: "2"
+            requests:
+              memory: 1Gi
+              cpu: 500m
+          securityContext:
+            capabilities:
+              add: ["SYS_ADMIN"]
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/bash
+                  - -c
+                  - if [ ! -f /var/lib/samba/POPULATED ]; then while [ ! -f /var/lib/samba/POPULATED ]; do sleep 1; done; samba_dnsupdate --current-ip=192.168.3.31 --use-samba-tool --rpc-server-ip=127.0.0.1; fi
+          ports:
+            # https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
+            # https://wiki.samba.org/index.php/Samba_AD_DC_Port_Usage
+            # https://learn.microsoft.com/en-us/troubleshoot/windows-server/identity/config-firewall-for-ad-domains-and-trusts
+            - containerPort: 53
+              name: domain
+            - containerPort: 53
+              name: domain-udp
+              protocol: UDP
+            - containerPort: 88
+              name: kerberos
+            - containerPort: 88
+              name: kerberos-udp
+              protocol: UDP
+            - containerPort: 123
+              name: ntp-udp
+              protocol: UDP
+            - containerPort: 135
+              name: epmap
+            - containerPort: 137
+              name: netbios-ns-udp
+              protocol: UDP
+            - containerPort: 138
+              name: netbios-dgm-udp
+              protocol: UDP
+            - containerPort: 139
+              name: netbios-ssn
+            - containerPort: 389
+              name: ldap
+            - containerPort: 389
+              name: ldap-udp
+              protocol: UDP
+            - containerPort: 445
+              name: microsoft-ds
+            - containerPort: 464
+              name: kpasswd
+            - containerPort: 464
+              name: kpasswd-udp
+              protocol: UDP
+            - containerPort: 636
+              name: ldaps
+            - containerPort: 3268
+              name: msft-gc
+            - containerPort: 3269
+              name: msft-gc-ssl
+            - containerPort: 49152
+              name: rpc-49152
+            - containerPort: 49153
+              name: rpc-49153
+            - containerPort: 49154
+              name: rpc-49154
+            - containerPort: 49155
+              name: rpc-49155
+            - containerPort: 49156
+              name: rpc-49156
+            - containerPort: 49157
+              name: rpc-49157
+            - containerPort: 49158
+              name: rpc-49158
+            - containerPort: 49159
+              name: rpc-49159
+            - containerPort: 49160
+              name: rpc-49160
+            - containerPort: 49161
+              name: rpc-49161
+            - containerPort: 49162
+              name: rpc-49162
+            - containerPort: 49163
+              name: rpc-49163
+            - containerPort: 49164
+              name: rpc-49164
+            - containerPort: 49165
+              name: rpc-49165
+          volumeMounts:
+            - name: container-json
+              mountPath: /etc/samba-container/container.json
+              subPath: container.json
+            - name: var-lib-samba
+              mountPath: /var/lib/samba
+            - name: etc-samba
+              mountPath: /etc/samba
+      volumes:
+        - name: container-json
+          configMap:
+            name: container-json
+        - name: var-lib-samba
+          persistentVolumeClaim:
+            claimName: var-lib-samba
+        - name: etc-samba
+          persistentVolumeClaim:
+            claimName: etc-samba
+      hostAliases:
+        - ip: 127.0.0.1
+          hostnames:
+            - dc-0
+            - dc-0.domain1.sink.test
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+          - 127.0.0.1
+        searches:
+          - domain1.sink.test
