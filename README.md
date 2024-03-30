@@ -17,13 +17,24 @@ Change directory:
 ```sh
 cd samba-in-kubernetes
 ```
-Edit the YAML file (specially the IP Address 192.168.3.31):
+Edit the YAML file (specially both IP addresses 192.168.3.40 and 192.168.3.41):
 ```sh
-nano ad-dc.yaml
+nano addc.yaml
 ```
 Apply it in Kubernetes:
 ```sh
-kubectl apply -f  ad-dc.yaml
+kubectl apply -f addc.yaml
+```
+Scale the pods:
+```sh
+kubectl -n samba-ad-server scale sts/dc --replicas=2
+```
+
+## Known issues
+You won't see the secondary pod IP address when you query the first one:
+```sh
+nslookup domain1.sink.test 192.168.3.40
+nslookup domain1.sink.test 192.168.3.41
 ```
 
 ## License
