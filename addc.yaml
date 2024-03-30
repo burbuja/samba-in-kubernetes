@@ -471,6 +471,7 @@ spec:
     targetPort: 49165
     name: rpc-49165
 ---
+# https://github.com/samba-in-kubernetes/samba-operator/blob/master/tests/files/samba-ad-server-deployment.yml
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
