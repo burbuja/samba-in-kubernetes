@@ -81,7 +81,7 @@ TLS self-signed keys generated OK
 
 Get a shell to the container:
 ```sh
-kubectl -n samba-ad-server exec dc-0 -- bash
+kubectl -n samba-ad-server exec -it dc-0 -- bash
 ```
 
 Run the following commands to set the external IP address:
@@ -96,7 +96,7 @@ exit
 
 Get a shell to the container:
 ```sh
-kubectl -n samba-ad-server exec dc-1 -- bash
+kubectl -n samba-ad-server exec -it dc-1 -- bash
 ```
 
 Run the following commands to set the external IP address:
