@@ -39,7 +39,7 @@ Watch the logs:
 kubectl -n samba-ad-server logs -f dc-0
 ```
 
-Wait until the domain is created and running, then press Ctrl+C:
+Wait until the domain is created and running on ```dc-0```, then press Ctrl+C:
 ```
 (...)
 Copyright Andrew Tridgell and the Samba Team 1992-2023
@@ -66,7 +66,7 @@ Watch the logs:
 kubectl -n samba-ad-server logs -f dc-1
 ```
 
-Wait until the domain is created and running, then press Ctrl+C:
+Wait until ```dc-1``` is joined to the domain and running, then press Ctrl+C:
 ```
 (...)
 Copyright Andrew Tridgell and the Samba Team 1992-2023
