@@ -14,12 +14,12 @@ Clone this repository:
 git clone https://github.com/burbuja/samba-in-kubernetes
 ```
 
-Change directory:
+Change the directory:
 ```sh
 cd samba-in-kubernetes
 ```
 
-Edit the YAML file (specially both IP addresses 192.168.3.40 and 192.168.3.41):
+Edit the YAML file:
 ```sh
 nano addc.yaml
 ```
@@ -29,97 +29,48 @@ Apply it in Kubernetes:
 kubectl apply -f addc.yaml
 ```
 
-Wait until the pod ```dc-0``` is running, then press Ctrl+C:
+Wait until both pods are running, then press `Ctrl`+`C` to exit:
 ```sh
 wait kubectl -n samba-ad-server get po
 ```
 
-Watch the logs:
+Watch the logs, then press `Ctrl`+`C` to exit:
 ```sh
 kubectl -n samba-ad-server logs -f dc-0
-```
-
-Wait until the domain is created and running on ```dc-0```, then press Ctrl+C:
-```
-(...)
-Copyright Andrew Tridgell and the Samba Team 1992-2023
-daemon 'samba' : Starting process...
-Attempting to autogenerate TLS self-signed keys for https for hostname 'DC-0.domain1.sink.test'
-: /usr/sbin/krb5kdc: Stash file (null) uses DEPRECATED enctype !
-: /usr/sbin/krb5kdc: Stash file (null) uses DEPRECATED enctype !
-: /usr/sbin/krb5kdc: krb5kdc: starting...
-TLS self-signed keys generated OK
-```
-
-Scale the pods:
-```sh
-kubectl -n samba-ad-server scale sts/dc --replicas=2
-```
-
-Wait until the pod ```dc-1``` is running, then press Ctrl+C:
-```sh
-wait kubectl -n samba-ad-server get po
-```
-
-Watch the logs:
-```sh
 kubectl -n samba-ad-server logs -f dc-1
 ```
 
-Wait until ```dc-1``` is joined to the domain and running, then press Ctrl+C:
-```
-(...)
-Copyright Andrew Tridgell and the Samba Team 1992-2023
-daemon 'samba' : Starting process...
-Attempting to autogenerate TLS self-signed keys for https for hostname 'DC-1.domain1.sink.test'
-: /usr/sbin/krb5kdc: Stash file (null) uses DEPRECATED enctype !
-: /usr/sbin/krb5kdc: Stash file (null) uses DEPRECATED enctype !
-: /usr/sbin/krb5kdc: krb5kdc: starting...
-TLS self-signed keys generated OK
-```
-### Change the IP address for ```dc-0```
+## Values
 
-Get a shell to the container:
-```sh
-kubectl -n samba-ad-server exec -it dc-0 -- bash
-```
-
-Run the following commands to set the external IP address:
-``` sh
-sed -i -E '/^\[global]/,/^\[/{s/^(\s+)interfaces\s+=.*/\1interfaces = lo/}' /etc/samba/smb.conf
-smbcontrol all reload-config
-samba_dnsupdate --verbose --current-ip="$EXTERNAL_IP" --use-samba-tool --rpc-server-ip=127.0.0.1 --option=interfaces=lo
-exit
-```
-
-### Change the IP address for ```dc-1```
-
-Get a shell to the container:
-```sh
-kubectl -n samba-ad-server exec -it dc-1 -- bash
-```
-
-Run the following commands to set the external IP address:
-``` sh
-sed -i -E '/^\[global]/,/^\[/{s/^(\s+)interfaces\s+=.*/\1interfaces = lo/}' /etc/samba/smb.conf
-smbcontrol all reload-config
-samba_dnsupdate --verbose --current-ip="$EXTERNAL_IP" --use-samba-tool --rpc-server-ip=127.0.0.1 --option=interfaces=lo
-exit
-```
+These are some values that you may want to change:
+* `10.233.0.10`: internal IP address (ClusterIP) for Samba DNS service
+* `169.254.25.10`: internal IP address for CoreDNS
+* `192.168.3.40`: external IP address for `dc-0`
+* `192.168.3.41`: external IP address for `dc-1`
 
 ## Troubleshooting
 
-If you want to query the new domain, these commands may be useful:
+You can access to each pod shell with these commands:
 ```sh
-samba-tool dns query localhost domain1.sink.test @ ALL -U administrator%Passw0rd
-samba-tool dns query localhost _msdcs.domain1.sink.test @ ALL -U administrator%Passw0rd
+kubectl -n samba-ad-server exec -it dc-0 -- bash
+kubectl -n samba-ad-server exec -it dc-1 -- bash
 ```
 
-You may want to run some of the following commands on each container to delete the old IP addresses:
+If you want to query the new domain, these commands may be useful in each pod:
 ```sh
-samba-tool dns delete localhost domain1.sink.test @ A OLD_IP_ADDRESS -U administrator%Passw0rd
-samba-tool dns delete localhost domain1.sink.test dc-0 A OLD_IP_ADDRESS -U administrator%Passw0rd
-samba-tool dns delete localhost domain1.sink.test dc-1 A OLD_IP_ADDRESS -U administrator%Passw0rd
+samba-tool dns query localhost domain1.sink.test @ ALL -U administrator -P
+samba-tool dns query localhost _msdcs.domain1.sink.test @ ALL -U administrator -P
+```
+
+You may want to run some of the following commands in each pod to delete the old IP addresses, if necessary:
+```sh
+EXTERNAL_IP=$(grep "$SAMBA_CONTAINER_ID" /etc/hosts | awk 'END{print $1}')
+MY_DOMAIN=$(grep "$SAMBA_CONTAINER_ID" /etc/hosts | awk 'END{print $3}' | cut -f2- -d .)
+sed -i -E '/^\[global]/,/^\[/{s/^(\s+)interfaces\s+=.*/\1interfaces = lo/}' /etc/samba/smb.conf
+smbcontrol all reload-config
+samba-tool dns delete localhost "$MY_DOMAIN" @ A "$POD_IP" -U administrator -P
+samba-tool dns delete localhost "$MY_DOMAIN" "$SAMBA_CONTAINER_ID" A "$POD_IP" -U administrator -P
+samba_dnsupdate --verbose --current-ip="$EXTERNAL_IP" --use-samba-tool --rpc-server-ip=127.0.0.1 --option=interfaces=lo
 ```
 
 ## License

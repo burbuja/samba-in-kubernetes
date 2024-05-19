@@ -172,21 +172,6 @@ data:
       }
     }
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: entrypoint-sh
-  namespace: samba-ad-server
-data:
-  entrypoint.sh: |
-    #!/bin/bash
-    EXTERNAL_IP=$(grep "$SAMBA_CONTAINER_ID" /etc/hosts | awk 'END{print $1}')
-    if [ "$POD_INDEX" -eq 0 ]; then
-        samba-dc-container run --setup=provision --setup=populate # --name="$SAMBA_CONTAINER_ID"
-    else
-        samba-dc-container run --setup=wait-domain --setup=join # --name="$SAMBA_CONTAINER_ID"
-    fi
----
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:
@@ -340,27 +325,6 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: svc-dns-pool
-  namespace: samba-ad-server
-  labels:
-    app: samba-ad-server
-spec:
-  type: ClusterIP
-  clusterIP: 10.233.0.10
-  selector:
-    app: samba-ad-server
-  ports:
-  - port: 53
-    targetPort: 53
-    name: domain
-  - port: 53
-    targetPort: 53
-    name: domain-udp
-    protocol: UDP
----
-apiVersion: v1
-kind: Service
-metadata:
   name: svc-dc-1
   namespace: samba-ad-server
   annotations:
@@ -476,6 +440,27 @@ spec:
     targetPort: 49165
     name: rpc-49165
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-dns-pool
+  namespace: samba-ad-server
+  labels:
+    app: samba-ad-server
+spec:
+  type: ClusterIP
+  clusterIP: 10.233.0.10
+  selector:
+    app: samba-ad-server
+  ports:
+  - port: 53
+    targetPort: 53
+    name: domain
+  - port: 53
+    targetPort: 53
+    name: domain-udp
+    protocol: UDP
+---
 # https://github.com/samba-in-kubernetes/samba-operator/blob/master/tests/files/samba-ad-server-deployment.yml
 apiVersion: apps/v1
 kind: StatefulSet
@@ -486,7 +471,7 @@ metadata:
     app: samba-ad-server
 spec:
   serviceName: samba-ad-server
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: samba-ad-server
@@ -496,146 +481,171 @@ spec:
         app: samba-ad-server
     spec:
       containers:
-        - name: samba-ad-server
-          image: quay.io/samba.org/samba-ad-server:latest
-          env:
-            - name: SAMBACC_CONFIG
-              value: /etc/samba-container/container.json
-            - name: SAMBA_CONTAINER_ID
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: POD_INDEX
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
-          command:
-            - /bin/bash
-          args:
-            - -c
-            - /entrypoint.sh
-          resources:
-            limits:
-              memory: 4Gi
-              cpu: 2
-            requests:
-              memory: 1Gi
-              cpu: 500m
-          securityContext:
-            capabilities:
-              add: ["SYS_ADMIN"]
-          ports:
-            # https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
-            # https://wiki.samba.org/index.php/Samba_AD_DC_Port_Usage
-            # https://learn.microsoft.com/en-us/troubleshoot/windows-server/identity/config-firewall-for-ad-domains-and-trusts
-            - containerPort: 53
-              name: domain
-            - containerPort: 53
-              name: domain-udp
-              protocol: UDP
-            - containerPort: 88
-              name: kerberos
-            - containerPort: 88
-              name: kerberos-udp
-              protocol: UDP
-            - containerPort: 123
-              name: ntp-udp
-              protocol: UDP
-            - containerPort: 135
-              name: epmap
-            - containerPort: 137
-              name: netbios-ns-udp
-              protocol: UDP
-            - containerPort: 138
-              name: netbios-dgm-udp
-              protocol: UDP
-            - containerPort: 139
-              name: netbios-ssn
-            - containerPort: 389
-              name: ldap
-            - containerPort: 389
-              name: ldap-udp
-              protocol: UDP
-            - containerPort: 445
-              name: microsoft-ds
-            - containerPort: 464
-              name: kpasswd
-            - containerPort: 464
-              name: kpasswd-udp
-              protocol: UDP
-            - containerPort: 636
-              name: ldaps
-            - containerPort: 3268
-              name: msft-gc
-            - containerPort: 3269
-              name: msft-gc-ssl
-            - containerPort: 49152
-              name: rpc-49152
-            - containerPort: 49153
-              name: rpc-49153
-            - containerPort: 49154
-              name: rpc-49154
-            - containerPort: 49155
-              name: rpc-49155
-            - containerPort: 49156
-              name: rpc-49156
-            - containerPort: 49157
-              name: rpc-49157
-            - containerPort: 49158
-              name: rpc-49158
-            - containerPort: 49159
-              name: rpc-49159
-            - containerPort: 49160
-              name: rpc-49160
-            - containerPort: 49161
-              name: rpc-49161
-            - containerPort: 49162
-              name: rpc-49162
-            - containerPort: 49163
-              name: rpc-49163
-            - containerPort: 49164
-              name: rpc-49164
-            - containerPort: 49165
-              name: rpc-49165
-          volumeMounts:
-            - name: container-json
-              mountPath: /etc/samba-container/container.json
-              subPath: container.json
-            - name: entrypoint-sh
-              mountPath: /entrypoint.sh
-              subPath: entrypoint.sh
-            - name: var-lib-samba
-              mountPath: /var/lib/samba
-            - name: etc-samba
-              mountPath: /etc/samba
-      volumes:
+      - name: samba-ad-server
+        # https://quay.io/repository/samba.org/samba-ad-server?tab=tags
+        image: quay.io/samba.org/samba-ad-server:v0.5
+        # imagePullPolicy: Always
+        env:
+        - name: SAMBACC_CONFIG
+          value: /etc/samba-container/container.json
+        - name: SAMBA_CONTAINER_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_INDEX
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        command:
+        - bash
+        - -c
+        - |
+          if [ ! -S /var/lib/samba/private/ldap_priv/ldapi ]; then
+            until [ -S /var/lib/samba/private/ldap_priv/ldapi ]; do
+              sleep 1
+            done
+            EXTERNAL_IP=$(grep "$SAMBA_CONTAINER_ID" /etc/hosts | awk 'END{print $1}')
+            MY_DOMAIN=$(grep "$SAMBA_CONTAINER_ID" /etc/hosts | awk 'END{print $3}' | cut -f2- -d .)
+            sed -i -E '/^\[global]/,/^\[/{s/^(\s+)interfaces\s+=.*/\1interfaces = lo/}' /etc/samba/smb.conf
+            smbcontrol all reload-config
+            samba-tool dns delete localhost "$MY_DOMAIN" @ A "$POD_IP" -U administrator -P
+            samba-tool dns delete localhost "$MY_DOMAIN" "$SAMBA_CONTAINER_ID" A "$POD_IP" -U administrator -P
+            samba_dnsupdate --verbose --current-ip="$EXTERNAL_IP" --use-samba-tool --rpc-server-ip=127.0.0.1 --option=interfaces=lo
+          fi &
+          if [ "$POD_INDEX" -eq 0 ]; then
+            samba-dc-container run --setup=provision --setup=populate
+          else
+            samba-dc-container run --setup=wait-domain --setup=join
+          fi
+        resources:
+          limits:
+            memory: 4Gi
+            cpu: 2
+          requests:
+            memory: 1Gi
+            cpu: 500m
+        securityContext:
+          capabilities:
+            add:
+            - SYS_ADMIN
+        readinessProbe:
+          exec:
+            command:
+              - bash
+              - -c
+              - nslookup $SAMBA_CONTAINER_ID localhost
+          initialDelaySeconds: 5
+          periodSeconds: 2
+          timeoutSeconds: 1
+        ports:
+        # https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.txt
+        # https://wiki.samba.org/index.php/Samba_AD_DC_Port_Usage
+        # https://learn.microsoft.com/en-us/troubleshoot/windows-server/identity/config-firewall-for-ad-domains-and-trusts
+        - containerPort: 53
+          name: domain
+        - containerPort: 53
+          name: domain-udp
+          protocol: UDP
+        - containerPort: 88
+          name: kerberos
+        - containerPort: 88
+          name: kerberos-udp
+          protocol: UDP
+        - containerPort: 123
+          name: ntp-udp
+          protocol: UDP
+        - containerPort: 135
+          name: epmap
+        - containerPort: 137
+          name: netbios-ns-udp
+          protocol: UDP
+        - containerPort: 138
+          name: netbios-dgm-udp
+          protocol: UDP
+        - containerPort: 139
+          name: netbios-ssn
+        - containerPort: 389
+          name: ldap
+        - containerPort: 389
+          name: ldap-udp
+          protocol: UDP
+        - containerPort: 445
+          name: microsoft-ds
+        - containerPort: 464
+          name: kpasswd
+        - containerPort: 464
+          name: kpasswd-udp
+          protocol: UDP
+        - containerPort: 636
+          name: ldaps
+        - containerPort: 3268
+          name: msft-gc
+        - containerPort: 3269
+          name: msft-gc-ssl
+        - containerPort: 49152
+          name: rpc-49152
+        - containerPort: 49153
+          name: rpc-49153
+        - containerPort: 49154
+          name: rpc-49154
+        - containerPort: 49155
+          name: rpc-49155
+        - containerPort: 49156
+          name: rpc-49156
+        - containerPort: 49157
+          name: rpc-49157
+        - containerPort: 49158
+          name: rpc-49158
+        - containerPort: 49159
+          name: rpc-49159
+        - containerPort: 49160
+          name: rpc-49160
+        - containerPort: 49161
+          name: rpc-49161
+        - containerPort: 49162
+          name: rpc-49162
+        - containerPort: 49163
+          name: rpc-49163
+        - containerPort: 49164
+          name: rpc-49164
+        - containerPort: 49165
+          name: rpc-49165
+        volumeMounts:
         - name: container-json
-          configMap:
-            name: container-json
-        - name: entrypoint-sh
-          configMap:
-            name: entrypoint-sh
-            defaultMode: 0744
+          mountPath: /etc/samba-container/container.json
+          subPath: container.json
         - name: var-lib-samba
-          persistentVolumeClaim:
-            claimName: var-lib-samba
+          mountPath: /var/lib/samba
         - name: etc-samba
-          persistentVolumeClaim:
-            claimName: etc-samba
+          mountPath: /etc/samba
+      volumes:
+      - name: container-json
+        configMap:
+          name: container-json
+      - name: var-lib-samba
+        persistentVolumeClaim:
+          claimName: var-lib-samba
+      - name: etc-samba
+        persistentVolumeClaim:
+          claimName: etc-samba
       hostAliases:
-        - ip: 192.168.3.40
-          hostnames:
-            - dc-0
-            - dc-0.domain1.sink.test
-        - ip: 192.168.3.41
-          hostnames:
-            - dc-1
-            - dc-1.domain1.sink.test
+      - ip: 192.168.3.40
+        hostnames:
+        - dc-0
+        - dc-0.domain1.sink.test
+      - ip: 192.168.3.41
+        hostnames:
+        - dc-1
+        - dc-1.domain1.sink.test
       dnsConfig:
         nameservers:
-          - 10.233.0.10
+        - 10.233.0.10
         searches:
-          - domain1.sink.test
+        - domain1.sink.test
       dnsPolicy: None
   volumeClaimTemplates:
     - metadata:
