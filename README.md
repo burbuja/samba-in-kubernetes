@@ -31,7 +31,7 @@ kubectl apply -f addc.yaml
 
 Wait until both pods are running, then press `Ctrl`+`C` to exit:
 ```sh
-wait kubectl -n samba-ad-server get po
+watch kubectl -n samba-ad-server get po
 ```
 
 Watch the logs, then press `Ctrl`+`C` to exit:
