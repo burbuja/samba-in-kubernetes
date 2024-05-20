@@ -43,8 +43,8 @@ kubectl -n samba-ad-server logs -f dc-1
 ## Values
 
 These are some values that you may want to change:
-* `10.233.0.10`: internal IP address (ClusterIP) for Samba DNS service
-* `169.254.25.10`: internal IP address for CoreDNS
+* `10.233.0.10`: internal IP address (ClusterIP) for Samba DNS
+* `169.254.25.10`: internal IP address for NodeLocal DNSCache
 * `192.168.3.40`: external IP address for `dc-0`
 * `192.168.3.41`: external IP address for `dc-1`
 
