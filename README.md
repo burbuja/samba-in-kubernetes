@@ -58,8 +58,8 @@ kubectl -n samba-ad-server exec -it dc-1 -- bash
 
 If you want to query the new domain, these commands may be useful in each pod:
 ```sh
-samba-tool dns query localhost domain1.sink.test @ ALL -U administrator -P
-samba-tool dns query localhost _msdcs.domain1.sink.test @ ALL -U administrator -P
+samba-tool dns query localhost domain1.sink.test @ ALL -P
+samba-tool dns query localhost _msdcs.domain1.sink.test @ ALL -P
 ```
 
 You may want to run some of the following commands in each pod to delete the old IP addresses, if necessary:
@@ -68,8 +68,8 @@ EXTERNAL_IP=$(grep "$SAMBA_CONTAINER_ID" /etc/hosts | awk 'END{print $1}')
 MY_DOMAIN=$(grep "$SAMBA_CONTAINER_ID" /etc/hosts | awk 'END{print $3}' | cut -f2- -d .)
 sed -i -E '/^\[global]/,/^\[/{s/^(\s+)interfaces\s+=.*/\1interfaces = lo/}' /etc/samba/smb.conf
 smbcontrol all reload-config
-samba-tool dns delete localhost "$MY_DOMAIN" @ A "$POD_IP" -U administrator -P
-samba-tool dns delete localhost "$MY_DOMAIN" "$SAMBA_CONTAINER_ID" A "$POD_IP" -U administrator -P
+samba-tool dns delete localhost "$MY_DOMAIN" @ A "$POD_IP" -P
+samba-tool dns delete localhost "$MY_DOMAIN" "$SAMBA_CONTAINER_ID" A "$POD_IP" -P
 samba_dnsupdate --verbose --current-ip="$EXTERNAL_IP" --use-samba-tool --rpc-server-ip=127.0.0.1 --option=interfaces=lo
 ```
 
