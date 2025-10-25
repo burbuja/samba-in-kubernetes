@@ -36,7 +36,7 @@ data:
         "sink": {
           "options": {
             "dns forwarder": "169.254.25.10",
-            "interfaces": "eth0",
+            "interfaces": "lo eth0",
             "rpc server dynamic port range": "49152-49165"
           }
         }
@@ -483,7 +483,7 @@ spec:
       containers:
       - name: samba-ad-server
         # https://quay.io/repository/samba.org/samba-ad-server?tab=tags
-        image: quay.io/samba.org/samba-ad-server:v0.6
+        image: quay.io/samba.org/samba-ad-server:v0.7
         # imagePullPolicy: Always
         env:
         - name: SAMBACC_CONFIG
